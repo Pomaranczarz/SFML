@@ -1,0 +1,176 @@
+#include <iostream>
+#include <vector>
+#include <ctime>
+#include <cstdlib>
+
+#include <SFML/Audio.hpp>
+#include <SFML/System.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/Graphics.hpp>
+#include <SFML/Network.hpp>
+
+using namespace std;
+using namespace sf;
+
+int main()
+{
+    RenderWindow window(VideoMode(800, 600), "XD", Style::Default);
+    window.setFramerateLimit(60);
+
+
+    int framecounter = 0, t = 0;
+
+    srand(time(0));
+
+    ///Tekst
+    Text text;
+    Font font;
+    font.loadFromFile("arial.ttf");
+    text.setFont(font);
+    text.setPosition(0.f, 0.f);
+    Text czas;
+    czas.setFont(font);
+    czas.setPosition(0.f, 30.f);
+
+
+    ///Pocisk
+    CircleShape pocisk;
+    pocisk.setFillColor(Color::Red);
+    pocisk.setRadius(5.f);
+    int cd = 0;
+    int hp = 100;
+
+    ///Przeciwnik
+    RectangleShape enemy;
+    enemy.setFillColor(Color::Green);
+    enemy.setSize(Vector2f(50.f, 50.f));
+    int enemySpawn = 0;
+
+    ///Gracz
+    CircleShape gracz;
+    gracz.setFillColor(Color::White);
+    gracz.setRadius(30.f);
+    gracz.setPosition(window.getSize().x/2 - gracz.getRadius(), window.getSize().y - gracz.getRadius()*2 - 10.f);
+    Vector2f punktStrzalu;
+
+    ///Pociski [tablica]
+    vector<CircleShape> pociski;
+    pociski.push_back(CircleShape(pocisk));
+
+
+    ///Przeciwnicy [tablica]
+    vector<RectangleShape> enemies;
+    enemies.push_back(RectangleShape(enemy));
+
+
+
+    while(window.isOpen())
+    {
+        Event e;
+        while(window.pollEvent(e))
+        {
+            if(e.type == Event::Closed)
+                window.close();
+            if(Keyboard::isKeyPressed(Keyboard::Escape))
+                window.close();
+        }
+
+        ///Ruch
+        punktStrzalu = Vector2f(gracz.getPosition().x + gracz.getRadius(), gracz.getPosition().y + gracz.getRadius());
+        if(Mouse::getPosition(window).x - gracz.getRadius() > 0 && Mouse::getPosition(window).x + gracz.getRadius()  < window.getSize().x)
+            gracz.setPosition(Mouse::getPosition(window).x - gracz.getRadius(), gracz.getPosition().y);
+
+        ///Pociski
+        if(cd < 5)
+            cd++;
+
+        if(Mouse::isButtonPressed(Mouse::Left) && cd >= 5)
+        {
+            pocisk.setPosition(punktStrzalu);
+            pociski.push_back(CircleShape(pocisk));
+            cd = 0;
+        }
+
+        for(size_t i = 0; i<pociski.size(); i++)
+        {
+            pociski[i].move(0.f, -10.f);
+
+            if(pociski[i].getPosition().y <= 0)
+            {
+                pociski.erase(pociski.begin() + i);
+            }
+        }
+
+        ///Przeciwnicy
+        if(enemySpawn < 30)
+            enemySpawn++;
+
+        if(enemySpawn >= 30)
+        {
+            enemy.setPosition(rand()%int(window.getSize().x - enemy.getSize().x), 0.f);
+            enemies.push_back(RectangleShape(enemy));
+            enemySpawn = 0;
+        }
+
+        for(size_t i = 0; i<enemies.size(); i++)
+        {
+            enemies[i].move(0.f, 5.f);
+            if(enemies[i].getPosition().y > window.getSize().y || enemies[i].getGlobalBounds().intersects(gracz.getGlobalBounds()))
+            {
+                enemies.erase(enemies.begin() + i);
+                hp-=10;
+            }
+        }
+
+        if(!enemies.empty() && !pociski.empty())
+        {
+            for(size_t i = 0; i<pociski.size(); i++)
+            {
+                for(size_t j = 0; j<enemies.size(); j++)
+                {
+                    if(pociski[i].getGlobalBounds().intersects(enemies[j].getGlobalBounds()))
+                    {
+                        pociski.erase(pociski.begin() + i);
+                        enemies.erase(enemies.begin() + j);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if(hp <= 0)
+            window.close();
+        else
+        {
+            window.clear();
+
+            framecounter++;
+
+            if(framecounter == 60)
+            {
+                t++;
+                framecounter = 0;
+            }
+
+            text.setString("HP: " + to_string(hp));
+            czas.setString("Timer: " + to_string(t));
+
+            window.draw(text);
+
+            window.draw(czas);
+
+            for(size_t i = 0; i<pociski.size(); i++)
+                window.draw(pociski[i]);
+
+            for(size_t i = 0; i<enemies.size(); i++)
+                window.draw(enemies[i]);
+
+            window.draw(gracz);
+
+            window.display();
+        }
+    }
+
+
+    return 0;
+}
