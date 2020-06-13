@@ -1,0 +1,263 @@
+#include <iostream>
+#include <vector>
+#include <ctime>
+#include <cstdlib>
+#include <sstream>
+
+///SFML =========================
+#include <SFML/Window.hpp>
+#include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
+#include <SFML/Network.hpp>
+//===============================
+
+using namespace std;
+using namespace sf;
+
+class Gra //glowna klasa gry
+{
+private:
+    ///Glowne wartosci ==========================================
+    RenderWindow* window; //okno
+    VideoMode videoMode; //rozmiar okna
+    Event e; //event ekranu
+    Vector2i mousePos; //pozycja x myszki
+    Vector2f mousePosf; //pozycja y myszki
+    Font font; //czcionka
+    Text text; //tekst
+
+    ///Wlasciwosci ==============================================
+    bool koniecGry;
+    float points; //punkty
+    int hp; //zdrowie
+    float enemySpawn; //licznik czasu tworzenia przeciwnikow
+    float enemySpawnMax; //limit czasu tworzenia przeciwnikow
+    float maxEnemies; //maksymalna ilosc przeciwnikow
+    bool isPressed; //wcisniecie myszki
+    float scales[4]{ {0.5f}, {0.7f}, {1.f}, {1.2f} }; //rozmiary przeciwnikow (skale)
+
+    ///Przeciwnicy ==============================================
+    RectangleShape enemy;
+    vector<RectangleShape> enemies; //tablica przeciwnikow
+
+    ///Ustawianie zmiennych =====================================
+    void ustawZmienne()
+    {
+        this->window = nullptr;
+        this->koniecGry = false;
+        this->points = 0;
+        this->hp = 10;
+        this->enemySpawnMax = 20.f;
+        this->enemySpawn = this->enemySpawnMax;
+        this->maxEnemies = 5;
+        this->isPressed = false;
+    }
+
+    ///Ustawianie okna ==========================================
+    void ustawOkno()
+    {
+        //ustawiamy rozmiary okna:
+        this->videoMode.height = 600; 
+        this->videoMode.width = 800;
+        this->window = new RenderWindow(this->videoMode, "Gra", Style::Default); //tworzymy okno
+        this->window->setFramerateLimit(60); //ustawiamy limit klatek
+    }
+
+    ///Ustawianie czcionki ======================================
+    void ustawFonta()
+    {
+        this->font.loadFromFile("arial.ttf"); //wczytujemy czcionke
+    }
+
+    ///Ustawianie tekstu ========================================
+    void ustawText()
+    {
+        this->text.setFont(this->font);
+        this->text.setCharacterSize(20);
+        this->text.setFillColor(Color::White);
+        this->text.setString("elo");
+    }
+
+    ///Ustawianie przeciwnika ===================================
+    void ustawEnemy()
+    {
+        //ustawiamy podstawowe wartosci
+        this->enemy.setPosition(20.f, 20.f);
+        this->enemy.setSize(Vector2f(70.f, 70.f));
+        this->enemy.setFillColor(Color::Red);
+    }
+
+public:
+    ///Konstruktor ==============================================
+    Gra()
+    {
+        this->ustawZmienne();
+        this->ustawOkno();
+        this->ustawFonta();
+        this->ustawText();
+        this->ustawEnemy();
+    }
+
+    ///Dekonstruktor ============================================
+    ~Gra()
+    {
+        delete this->window;
+    }
+
+    ///Sprawdzanie stanu okna ===================================
+    const bool czyDziala() const
+    {
+        return this->window->isOpen();
+    }
+
+    ///Sprawdza czy koniec gry ==================================
+    const bool czyKoniec() const
+    {
+        return this->koniecGry;
+    }
+
+    ///Ustawianie przeciwnika ===================================
+    void spawnEnemy()
+    {
+        this->enemy.setPosition(rand()%int(this->window->getSize().x - this->enemy.getSize().x), 0.f); //losujemy pozycje przeciwnika...
+        this->enemies.push_back(this->enemy); //...i wrzucamy do tablicy z przeciwnikami
+    }
+
+    ///Obsluga wydarzen =========================================
+    void eventy()
+    {
+        while (this->window->pollEvent(this->e))
+        {
+            if (this->e.type == Event::Closed)
+                this->window->close();
+            if (Keyboard::isKeyPressed(Keyboard::Escape))
+                this->window->close();
+        }
+    }
+    
+    ///Pozycja myszki ===========================================
+    void updateMouse()
+    {
+        this->mousePos = Mouse::getPosition(*this->window);
+        this->mousePosf = this->window->mapPixelToCoords(this->mousePos);
+    }
+
+    ///Update tekstu ============================================
+    void updateText()
+    {
+        stringstream ss;
+        ss << "Punkty: " << this->points << " Zdrowie: " << this->hp << '\n';
+        this->text.setString(ss.str());
+    }
+
+    ///Update przeciwnikow ======================================
+    void updateEnemies()
+    {
+        //losowanie rozmiaru przeciwnika
+        int index = rand() % 4;
+        this->enemy.setSize(Vector2f(70.f * scales[index], 70.f * scales[index]));
+        //losowanie koloru przeciwnika
+        this->enemy.setFillColor(Color(rand()%255, rand() % 255, rand() % 255));
+        //petla obslugujaca tworzenie przeciwnikow
+        if (this->enemies.size() < this->maxEnemies)
+        {
+            if (this->enemySpawn >= this->enemySpawnMax)
+            {
+                this->spawnEnemy();
+                this->enemySpawn = 0.f;
+            }
+            this->enemySpawn++;
+        }
+
+        //obsluga kolizji przeciwnikow z oknem
+        for (size_t i = 0; i < this->enemies.size(); i++)
+        {
+            this->enemies[i].move(0.f, 5.f);
+            if (this->enemies[i].getPosition().y > this->window->getSize().y)
+            {
+                this->enemies.erase(this->enemies.begin() + i);
+                this->hp--;
+                cout << "HP: " << this->hp << endl;
+            }
+        }
+
+        //obsluga kolizji przeciwnikow z wcisneta myszka
+        if (Mouse::isButtonPressed(Mouse::Left))
+        {
+            if (!this->isPressed)
+            {
+                this->isPressed = true;
+                for (size_t i = 0; i < this->enemies.size(); i++)
+                {
+                    if (this->enemies[i].getGlobalBounds().contains(this->mousePosf))
+                    {
+                        //przydzial punktow z zaleznosci od rozmiaru przeciwnika
+                        this->enemies.erase(this->enemies.begin() + i);
+                        if (this->enemies[i].getSize().x == 35.f)
+                            this->points += 4;
+                        else if (this->enemies[i].getSize().x == 49.f)
+                            this->points += 3;
+                        else if (this->enemies[i].getSize().x == 70.f)
+                            this->points += 2;
+                        else
+                            this->points++;
+                    }
+                }
+            }
+        }isPressed = false;
+    }
+
+    ///Aktualizacja gry =========================================
+    void update()
+    {
+        this->eventy();
+        
+        if (!this->koniecGry) //nie bedziemy przeciez aktualizowac skonczonej gry ;p
+        {
+            this->updateMouse();
+            this->updateText();
+            this->updateEnemies();
+        }
+
+        //jeden z warunkow konca gry
+        if (this->hp <= 0)
+            this->koniecGry = true;
+    }
+
+    ///Rysowanie tekstu =========================================
+    void renderText(RenderTarget& target)
+    {
+        target.draw(this->text);
+    }
+
+    ///Rysowanie przeciwnikow ===================================
+    void renderEnemies(RenderTarget& target)
+    {
+        for (auto& i : this->enemies)
+            target.draw(i);
+    }
+
+    ///Rysowanie calej gry ======================================
+    void render()
+    {
+        this->window->clear();
+
+        this->renderText(*this->window);
+        this->renderEnemies(*this->window);
+
+        this->window->display();
+    }
+
+};
+
+int main()
+{
+    srand(time(NULL)); //dodajemy losowosc
+
+    Gra gra;
+    while (gra.czyDziala() && !gra.czyKoniec())
+    {
+        gra.update();
+        gra.render();
+    }
+}
